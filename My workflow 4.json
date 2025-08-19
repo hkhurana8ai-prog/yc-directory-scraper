@@ -1,0 +1,386 @@
+{
+  "name": "My workflow 4",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -16
+      ],
+      "id": "6df30802-a88d-4149-b46f-dad5a28c29c4",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://45BWZJ1SGC-dsn.algolia.net/1/indexes/YCCompany_production/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Algolia-API-Key",
+              "value": "MjBjYjRiMzY0NzdhZWY0NjExY2NhZjYxMGIxYjc2MTAwNWFkNTkwNTc4NjgxYjU0YzFhYTY2ZGQ5OGY5NDMxZnJlc3RyaWN0SW5kaWNlcz0lNUIlMjJZQ0NvbXBhbnlfcHJvZHVjdGlvbiUyMiUyQyUyMllDQ29tcGFueV9CeV9MYXVuY2hfRGF0ZV9wcm9kdWN0aW9uJTIyJTVEJnRhZ0ZpbHRlcnM9JTVCJTIyeWNkY19wdWJsaWMlMjIlNUQmYW5hbHl0aWNzVGFncz0lNUIlMjJ5Y2RjJTIyJTVE"
+            },
+            {
+              "name": "X-Algolia-Application-Id",
+              "value": "45BWZJ1SGC"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"params\": \"hitsPerPage=100&page=0\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        -16
+      ],
+      "id": "de9a0f5e-4a15-4fbe-9341-df8c83bde859",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "hits",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        96,
+        -16
+      ],
+      "id": "6c97b7b1-0372-4ea5-a7cb-4b12937cf162",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ea20ec95-d86d-45dc-b27d-34aa1b3910c7",
+              "name": "company_url",
+              "value": "=https://www.ycombinator.com/companies/{{ $json.slug }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        272,
+        -16
+      ],
+      "id": "013dd7eb-34ee-4e1a-bf08-5893a0a99dce",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        480,
+        -16
+      ],
+      "id": "3d346607-45d5-4226-a204-90518d315916",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.company_url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        0
+      ],
+      "id": "1499ef4a-69d0-45de-96ae-d709850d37cf",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "company_data_json",
+              "cssSelector": "div[data-page]",
+              "returnValue": "attribute",
+              "attribute": "data-page"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        32
+      ],
+      "id": "fbeaade7-aae1-4e9e-8b50-8b2012136c72",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "/**\n * Input  : one item that already contains `company_data_json`\n * Output : one item with all requested fields + open_jobs[] + founders[]\n */\n\nconst raw = $json.company_data_json;\nif (!raw) return {};              // skip if selector failed\n\nconst parsed   = JSON.parse(raw);  // big { component, props, … }\nconst company  = parsed.props?.company ?? {};\n\n// -- build final shape ------------------------------------------------\nreturn {\n  json: {\n    /* ---------- company-level fields ---------- */\n    company_image:      company.small_logo_url || company.logo_url || null,\n    company_id:         company.id,\n    company_name:       company.name,\n    url:                `https://www.ycombinator.com/companies/${company.slug}`,\n    short_description:  company.one_liner,\n    long_description:   company.long_description,\n    batch:              company.batch_name,\n    status:             company.status,                // active, acquired, dead …\n    tags:               company.markets || [],         // list of industry tags\n    company_location:   company.location,\n    year_founded:       company.founded_year,\n    team_size:          company.team_size,\n    primary_partner:    company.primary_partner?.name ?? null,\n    website:            company.website,\n    company_linkedin:   company.linkedin_url,\n    company_x:          company.twitter_url,\n    is_hiring:          company.is_hiring,\n    number_open_jobs:   (company.jobs || []).length,\n\n    /* ---------- nested arrays ---------- */\n    open_jobs:  (company.jobs || []).map(j => ({\n      id:                 j.id,\n      title:              j.title,\n      description_url:    j.url,\n      description:        j.description,\n      location:           j.location,\n      salary:             j.salary,\n      years_experience:   j.years_experience\n    })),\n\n    founders:   (company.founders || []).map(f => ({\n      id:        f.id,\n      name:      f.name,\n      linkedin:  f.linkedin_url,\n      x:         f.twitter_url\n    }))\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        32
+      ],
+      "id": "2fba6e28-e613-4dd7-85df-4be1fbdbf7d0",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1v8z064k3LRNygrR7rwQ-39e-qIhVOacE0KwiZss2hJo",
+          "mode": "list",
+          "cachedResultName": "Y Combinator Web Scraper",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1v8z064k3LRNygrR7rwQ-39e-qIhVOacE0KwiZss2hJo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1v8z064k3LRNygrR7rwQ-39e-qIhVOacE0KwiZss2hJo/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "slug",
+              "displayName": "slug",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "one_liner",
+              "displayName": "one_liner",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "batch",
+              "displayName": "batch",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "website",
+              "displayName": "website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "founders",
+              "displayName": "founders",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1456,
+        32
+      ],
+      "id": "a063081d-3847-4ce8-a024-3746006b16dd",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q4ZBjTmrxFShNUtu",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8b5f905b-e554-4d66-9fc9-d257842b2ab3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c147ecf4c06d332c90dd4824782a318ec321d5f0369a26849d7bfadc56843f91"
+  },
+  "id": "cgkIHc2FAdtLronF",
+  "tags": []
+}
